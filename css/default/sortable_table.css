@@ -1,0 +1,21 @@
+table.sortable-table th {
+	cursor:pointer;
+}
+
+table.sortable-table th div.sort-direction-container {
+	float:right;
+	clear:both;
+    position:relative;
+	width:7px;
+	display:inline-block;
+	/* For IE7 */
+	zoom:1;
+	*display:inline;
+}
+
+table.sortable-table th div.sort-direction-container img {
+	position:relative;
+	height:100%;
+	background-position:center center;
+	background-repeat:no-repeat;
+}
