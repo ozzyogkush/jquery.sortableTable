@@ -46,7 +46,7 @@ Example
 	<table id="grouping_example_table">
 		<tr>
 			<th>State Name</th>
-			<th>Number of Respondents</th>
+			<th data-sort-type="numeric">Number of Respondents</th>
 		</tr>
 		<tr data-level="1">
 			<td colspan="2"><b>Division:</b> New England</td>

@@ -46,16 +46,18 @@
  * new rows, by calling .sortableTable() on your jQuery extended `<table>` element
  * with the method name 'reinit' as the first argument, rather than a set of options.
  * 
+ * @changelog	1.0.1 - Added 'sort-type' recognition for 'numeric' and 'string' values
+ * 
  * @example     See example.html	
  * @class		SortableTable
  * @name		SortableTable
- * @version		1.0
+ * @version		1.0.1
  * @author		Derek Rosenzweig <derek.rosenzweig@gmail.com, drosenzweig@riccagroup.com>
  */
 (function($) {
 	
 	/**
-     * Constructor. 
+     * Constructor.
      *
      * @access		public
      * @memberOf	SortableTable
@@ -133,6 +135,31 @@
 		 */
 		var numeric_regex = new RegExp('([a-zA-Z,]|((\b)-(\b)))', 'g');
 		
+		/**
+		 * The index of the column header cell that was clicked to sort the table.
+		 *
+		 * @access		public
+		 * @type		integer
+		 * @memberOf	SortableTable
+		 * @since		1.0.1
+		 * @default		null
+		 */
+		var col_index_clicked = null;
+		
+		/**
+		 * The type of sort expected. Valid values:
+		 *
+		 * 	numeric
+		 * 	string
+		 *
+		 * @access		public
+		 * @type		string
+		 * @memberOf	SortableTable
+		 * @since		1.0.1
+		 * @default		null
+		 */
+		var sort_type = null;
+		
 		//--------------------------------------------------------------------------
 		//
 		//  Methods
@@ -140,7 +167,10 @@
 		//--------------------------------------------------------------------------
 		
 		/**
-		 * Initializes the sortable table.
+		 * Initializes the sortable table. Adds the 'sort-direction-container' <div>
+		 * elements to each sortable column header cell, then assigns parent rows
+		 * to each level 2 and 3 row, and lastly, sets the 'sort_value' data property
+		 * for each table cell (in case the contents of the cell change for some reason).
 		 *
 		 * If the required options are not present, throws an exception.
 		 *
@@ -216,6 +246,7 @@
 		 * @access		public
 		 * @memberOf	SortableTable
 		 * @since		1.0
+		 * @updated		1.0.1
 		 *
 		 * @param		event					Event		jQuery 'click' event triggered when the user clicks on a table header cell
 		 */
@@ -223,8 +254,9 @@
 			if (event.type == 'click') {
 				var clicked_table_header = $(this);
 				
-				var col_index_clicked = clicked_table_header.index();
 				var sort_direction = (clicked_table_header.attr('data-sort-direction') != undefined ? clicked_table_header.attr('data-sort-direction') : 'DESC');
+				sortable_table.col_index_clicked = clicked_table_header.index();
+				sortable_table.sort_type = (clicked_table_header.attr('data-sort-type') != undefined ? clicked_table_header.attr('data-sort-type') : null);
 				
 				// Clear the sort direction of any other columns
 				clicked_table_header.siblings().attr('data-sort-direction', null).find('img').css({backgroundImage:''});
@@ -241,50 +273,9 @@
 				if (l1_rows.length == 0) {
 					l1_rows = sortable_table.find('tr').not(':first-child');
 				}
-				var level_1_rows_to_sort = _.sortBy(l1_rows, function(row) {
-					var tbr = null;
-					var cur_index = col_index_clicked;
-					var cur_cell = $(row).find('td').eq(cur_index);
-					while (cur_cell.length == 0 && cur_index >= 0) {
-						cur_index--;
-						cur_cell = $(row).find('td').eq(cur_index);
-					}
-					var value = cur_cell.data('sort_value');
-					var original_value = value;
-					value = value.replace(numeric_regex, '');
-					tbr = isNaN(parseInt(value)) ? original_value.toLowerCase() : parseInt(value);
-					return tbr;
-				});
-				
-				var level_2_rows_to_sort = _.sortBy(sortable_table.find('tr[data-level=2]'), function(row) {
-					var tbr = null;
-					var cur_index = col_index_clicked;
-					var cur_cell = $(row).find('td').eq(cur_index);
-					while (cur_cell.length == 0 && cur_index >= 0) {
-						cur_index--;
-						cur_cell = $(row).find('td').eq(cur_index);
-					}
-					var value = cur_cell.data('sort_value');
-					var original_value = value;
-					value = value.replace(numeric_regex, '');
-					tbr = isNaN(parseInt(value)) ? original_value.toLowerCase() : parseInt(value);
-					return tbr;
-				});
-				
-				var level_3_rows_to_sort = _.sortBy(sortable_table.find('tr[data-level=3]'), function(row) {
-					var tbr = null;
-					var cur_index = col_index_clicked;
-					var cur_cell = $(row).find('td').eq(cur_index);
-					while (cur_cell.length == 0 && cur_index >= 0) {
-						cur_index--;
-						cur_cell = $(row).find('td').eq(cur_index);
-					}
-					var value = cur_cell.data('sort_value');
-					var original_value = value;
-					value = value.replace(numeric_regex, '');
-					tbr = isNaN(parseInt(value)) ? original_value.toLowerCase() : parseInt(value);
-					return tbr;
-				});
+				var level_1_rows_to_sort = _.sortBy(l1_rows, sortable_table.sortFunction);
+				var level_2_rows_to_sort = _.sortBy(sortable_table.find('tr[data-level=2]'), sortable_table.sortFunction);
+				var level_3_rows_to_sort = _.sortBy(sortable_table.find('tr[data-level=3]'), sortable_table.sortFunction);
 				
 				// ...OK, by now the data in each row has been sorted based on the column clicked, so
 				// now we have to actually move each row in the table to where it belongs so the
@@ -336,6 +327,49 @@
 					}
 				}
 			}
+		}
+		
+		/**
+		 * Determines what to return for the sort value based on which header
+		 * cell was clicked, how many cells are in the current row, and the
+		 * type of sort expected. If no sort type is expected, it does the
+		 * best it can with each row's cell text. 
+		 *
+		 * @access		public
+		 * @memberOf	SortableTable
+		 * @since		1.0.1
+		 *
+		 * @param		row				HTMLElement				A <tr> row to be sorted
+		 *
+		 * @return		tbr				mixed					An integer or a string containing the text/value to sort on
+		 */
+		this.sortFunction = function(row) {
+			var tbr = null;
+			var cur_index = sortable_table.col_index_clicked;
+			var sort_type = sortable_table.sort_type;
+			var cur_cell = $(row).find('td').eq(cur_index);
+			while (cur_cell.length == 0 && cur_index >= 0) {
+				cur_index--;
+				cur_cell = $(row).find('td').eq(cur_index);
+				var header_cell = $(row).closest('table').find('tr').eq(0).find('th').eq(cur_index);
+				sort_type = (header_cell.attr('data-sort-type') != undefined ? header_cell.attr('data-sort-type') : null)
+			}
+			var value = original_value = cur_cell.data('sort_value');
+			value = value.replace(numeric_regex, '');
+			
+			if (sort_type!= null) {
+				if (sort_type == 'numeric') {
+					tbr = isNaN(parseInt(value)) ? -(Number.MAX_VALUE) : parseInt(value);
+				}
+				else {
+					tbr = original_value.toLowerCase();
+				}
+			}
+			else {
+				tbr = isNaN(parseInt(value)) ? original_value.toLowerCase() : parseInt(value);
+			}
+			
+			return tbr;
 		}
 		
 		/********* Event handlers *********/
