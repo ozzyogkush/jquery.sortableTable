@@ -19,6 +19,7 @@ Feature Overview
 ----------------
 * Can handle up to 3 levels of nested data
 * Supports sorting by numeric and string values
+* Can exclude sets of rows from the set of sortable rows
 
 Usage
 =====
@@ -186,7 +187,7 @@ Example
 			<td>19010</td>
 			<td>95</td>
 		</tr>
-		<tr data-level="1">
+		<tr data-level="1" id="west_south_central">
 			<td colspan="2"><b>Division:</b> West South Central</td>
 		</tr>
 		<tr data-level="2">
@@ -241,6 +242,7 @@ Example
 
 	<script type='text/javascript'>
 		$(document).ready(function() {
-			$('table#grouping_example_table').sortableTable({image_base:'img/default'});
+			$('table#grouping_example_table').sortableTable({image_base:'img/default',
+															 rows_to_anchor:'#west_south_central'});
 		});
 	</script>

@@ -91,6 +91,12 @@
 				<td>0</td>
 				<td>91</td>
 			</tr>
+			<tr>
+				<td colspan="2">TOTAL</td>
+				<td>570</td>
+				<td>20</td>
+				<td>590</td>
+			</tr>
 		</table><br /><br />
 		
 		<table id="example_table_2">
@@ -135,6 +141,12 @@
 				<td>91</td>
 				<td>0</td>
 				<td>0</td>
+			</tr>
+			<tr>
+				<td colspan="2">TOTAL</td>
+				<td>685</td>
+				<td>0</td>
+				<td>685</td>
 			</tr>
 		</table><br /><br />
 		
@@ -281,7 +293,7 @@
 				<td>19010</td>
 				<td>95</td>
 			</tr>
-			<tr data-level="1">
+			<tr data-level="1" id="west_south_central">
 				<td colspan="2"><b>Division:</b> West South Central</td>
 			</tr>
 			<tr data-level="2">
@@ -336,10 +348,12 @@
 
 		<script type='text/javascript'>
 			$(document).ready(function() {
-				$('table#example_table').sortableTable({image_base:'img'});
+				$('table#example_table').sortableTable({image_base:'img',
+													    rows_to_anchor:':last-child'});
 				$('table#example_table_2').sortableTable({image_base:'img',
 														  allow_col_resize:true});
-				$('table#grouping_example_table').sortableTable({image_base:'img'});
+				$('table#grouping_example_table').sortableTable({image_base:'img',
+																 rows_to_anchor:'#west_south_central'});
 			});
 		</script>
 	</body>

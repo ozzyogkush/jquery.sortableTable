@@ -23,6 +23,7 @@
  * ----------------
  * * Can handle up to 3 levels of nested data
  * * Supports sorting by numeric and string values
+ * * Can exclude sets of rows from the set of sortable rows
  *
  * Usage
  * =====
@@ -45,13 +46,14 @@
  * You can re-initialize the table's sort, say because the table was updated with
  * new rows, by calling .sortableTable() on your jQuery extended `<table>` element
  * with the method name 'reinit' as the first argument, rather than a set of options.
- * 
+ *
+ * @changelog	1.0.2 - Added 'rows_to_anchor' option. Can be a selector string, set of elements, function, or jQuery object (see jQuery.not())
  * @changelog	1.0.1 - Added 'sort-type' recognition for 'numeric' and 'string' values
  * 
  * @example     See example.html	
  * @class		SortableTable
  * @name		SortableTable
- * @version		1.0.1
+ * @version		1.0.2
  * @author		Derek Rosenzweig <derek.rosenzweig@gmail.com, drosenzweig@riccagroup.com>
  */
 (function($) {
@@ -62,6 +64,7 @@
      * @access		public
      * @memberOf	SortableTable
      * @since		1.0
+     * @updated		1.0.2
      *
      * @param		options_or_method	mixed				An object containing various options, or a string containing a method name.
      * 															Valid method names: 'reinit'
@@ -83,11 +86,13 @@
 		 * @type		Object
 		 * @memberOf	SortableTable
 		 * @since		1.0
+		 * @updated		1.0.2
 		 */
 		var default_options = {
-			image_base : null,						// Location of directory where images are located. Default null. Required.
-			theme : 'default',						// The theme directory where images are stored
-			allow_col_resize : false				// Flag indicating whether to allow columns to resize when adding the sort direction indicator. Default false. Optional.
+			image_base : null,						// Location of directory where images are located. Required. Default null.
+			theme : 'default',						// The theme directory where images are stored. Optiona. Default 'default'.
+			allow_col_resize : false,				// Flag indicating whether to allow columns to resize when adding the sort direction indicator. Optional. Default false.
+			rows_to_anchor : null					// Can be a selector string, set of elements, function, or jQuery object (see http://api.jquery.com/not/ for valid options). Optional. Default null.
 		};
 		
 		/**
@@ -177,6 +182,7 @@
 		 * @access		public
 		 * @memberOf	SortableTable
 		 * @since		1.0
+		 * @updated		1.0.2
 		 * @throws		SortableTable exception
 		 */
 		this.initSortableTable = function() {
@@ -204,7 +210,6 @@
 			});
 			
 			// assign parents to their children for level 2 and 3 rows...
-			var other_rows = sortable_table.find('tr').not(':first-child');
 			var level_3_rows = sortable_table.find('tr[data-level=3]');
 			if (level_3_rows.length > 0) {
 				level_3_rows.each(function(row_index, table_row) {
@@ -224,11 +229,27 @@
 			
 			// Set the sort_value data for each cell based on the cell value
 			var other_rows = sortable_table.find('tr').not(':first-child');
+			if (options.rows_to_anchor != null) {
+				var other_rows_copy = other_rows.not(options.rows_to_anchor);
+				if (other_rows_copy.length == 0) {
+					// Either the value of options.rows_to_anchor was not a valid param for $.not(),
+					// or it excluded all the remaining sortable rows, so there's nothing to sort anymore.
+					throw "SortableTable widget: 'rows_to_anchor' option excluded all possible rows to sort";
+				}
+				else {
+					other_rows = other_rows_copy;
+				}
+			}
 			other_rows.each(function(row_index, table_row) {
 				var tr = $(table_row);
 				tr.find('td').each(function(col_index, table_cell) {
 					var tc = $(table_cell);
-					tc.data('sort_value', tc.text());
+					var sort_value = tc.text();
+					if (tc.attr('data-sort-property') != null &&
+						tr.attr(tc.attr('data-sort-property')) != null) {
+						sort_value = tr.attr(tc.attr('data-sort-property'));
+					}
+					tc.data('sort_value', sort_value);
 				});
 			});
 			
@@ -240,26 +261,54 @@
 		}
 		
 		/**
+		 * Resets the table back to its original status. Should be called before
+		 * reinitializing the table's sort functionality.
+		 *
+		 * @access		public
+		 * @memberOf	SortableTable
+		 * @since		1.0.2
+		 */
+		this.destroy = function() {
+			// Remove the event handler(s).
+			sortable_table.off('click');
+			
+			// Remove the options
+			sortable_table.removeData('sortable-table-options');
+			
+			var other_rows = sortable_table.find('tr').not(':first-child');
+			other_rows.removeData('parent_row');
+			other_rows.find('td').removeData('sort_value');
+			
+			header_row.find('th').removeAttr('data-sort-direction');
+			header_row.find('th div.sort-direction-container').remove();
+			
+			sortable_table.removeClass('sortable-table');
+		}
+		
+		/**
 		 * When the user clicks on a header cell of a table, this sorts the entire table
 		 * based on the data attributes' values assigned to each row.
 		 *
 		 * @access		public
 		 * @memberOf	SortableTable
 		 * @since		1.0
-		 * @updated		1.0.1
+		 * @updated		1.0.2
 		 *
 		 * @param		event					Event		jQuery 'click' event triggered when the user clicks on a table header cell
 		 */
 		this.sortTableByColumn = function(event) {
 			if (event.type == 'click') {
 				var clicked_table_header = $(this);
+				var cur_sort_dir = clicked_table_header.attr('data-sort-direction');
+				var cur_sort_type = clicked_table_header.attr('data-sort-type');
 				
-				var sort_direction = (clicked_table_header.attr('data-sort-direction') != undefined ? clicked_table_header.attr('data-sort-direction') : 'DESC');
+				var sort_direction = (cur_sort_dir != null ? cur_sort_dir : 'DESC');
 				sortable_table.col_index_clicked = clicked_table_header.index();
-				sortable_table.sort_type = (clicked_table_header.attr('data-sort-type') != undefined ? clicked_table_header.attr('data-sort-type') : null);
+				sortable_table.sort_type = (cur_sort_type != null ? cur_sort_type : null);
 				
 				// Clear the sort direction of any other columns
-				clicked_table_header.siblings().attr('data-sort-direction', null).find('img').css({backgroundImage:''});
+				clicked_table_header.siblings().removeAttr('data-sort-direction');
+				clicked_table_header.siblings().find('img').css({backgroundImage:''});
 				// Set the new sort direction for the current column
 				if (sort_direction == 'ASC') {
 					clicked_table_header.attr('data-sort-direction', 'DESC').find('img').css({backgroundImage:'url("'+options.image_base+'/'+options.theme+'/arrow-down.png")'});
@@ -273,9 +322,24 @@
 				if (l1_rows.length == 0) {
 					l1_rows = sortable_table.find('tr').not(':first-child');
 				}
+				var l2_rows = sortable_table.find('tr[data-level=2]');
+				var l3_rows = sortable_table.find('tr[data-level=3]');
+				if (options.rows_to_anchor != null) {
+					var l1_rows_copy = l1_rows.not(options.rows_to_anchor);
+					if (l1_rows.length == 0) {
+						// Either the value of options.rows_to_anchor was not a valid param for $.not(),
+						// or it excluded all the remaining sortable rows, so there's nothing to sort anymore.
+						throw "SortableTable widget: 'rows_to_anchor' option excluded all possible rows to sort";
+					}
+					else {
+						l1_rows = l1_rows_copy;
+					}
+					l2_rows = l2_rows.not(options.rows_to_anchor);
+					l3_rows = l3_rows.not(options.rows_to_anchor);
+				}
 				var level_1_rows_to_sort = _.sortBy(l1_rows, sortable_table.sortFunction);
-				var level_2_rows_to_sort = _.sortBy(sortable_table.find('tr[data-level=2]'), sortable_table.sortFunction);
-				var level_3_rows_to_sort = _.sortBy(sortable_table.find('tr[data-level=3]'), sortable_table.sortFunction);
+				var level_2_rows_to_sort = _.sortBy(l2_rows, sortable_table.sortFunction);
+				var level_3_rows_to_sort = _.sortBy(l3_rows, sortable_table.sortFunction);
 				
 				// ...OK, by now the data in each row has been sorted based on the column clicked, so
 				// now we have to actually move each row in the table to where it belongs so the
@@ -382,11 +446,12 @@
 			
 			if (options_or_method == 'reinit') {
 				// Reinitialize the sortable table
+				this.destroy();
 				this.initSortableTable();
 			}
 		}
 		else {
-			/* Initialize the styled select box */
+			/* Initialize the sortable table */
 			options = $.extend(default_options, options_or_method);
 			this.initSortableTable();
 		}
