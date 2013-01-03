@@ -24,8 +24,7 @@
 			}
 			th, td {
 				padding:5px 10px;
-			}
-			
+			}			
 			
 			#grouping_example_table tr[data-level="1"] td {
 				background-color:#CEF1F1;
@@ -351,7 +350,8 @@
 				$('table#example_table').sortableTable({image_base:'img',
 													    rows_to_anchor:':last-child'});
 				$('table#example_table_2').sortableTable({image_base:'img',
-														  allow_col_resize:true});
+														  allow_col_resize:true,
+														  default_sort_order:'DESC'});
 				$('table#grouping_example_table').sortableTable({image_base:'img',
 																 rows_to_anchor:'#west_south_central'});
 			});

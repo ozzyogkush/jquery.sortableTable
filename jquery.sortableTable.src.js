@@ -47,13 +47,14 @@
  * new rows, by calling .sortableTable() on your jQuery extended `<table>` element
  * with the method name 'reinit' as the first argument, rather than a set of options.
  *
+ * @changelog	1.0.3 - Set click events to use 'sortableTable' namespace; added 'default_sort_order' option.
  * @changelog	1.0.2 - Added 'rows_to_anchor' option. Can be a selector string, set of elements, function, or jQuery object (see jQuery.not())
  * @changelog	1.0.1 - Added 'sort-type' recognition for 'numeric' and 'string' values
  * 
  * @example     See example.html	
  * @class		SortableTable
  * @name		SortableTable
- * @version		1.0.2
+ * @version		1.0.3
  * @author		Derek Rosenzweig <derek.rosenzweig@gmail.com, drosenzweig@riccagroup.com>
  */
 (function($) {
@@ -64,7 +65,7 @@
      * @access		public
      * @memberOf	SortableTable
      * @since		1.0
-     * @updated		1.0.2
+     * @updated		1.0.3
      *
      * @param		options_or_method	mixed				An object containing various options, or a string containing a method name.
      * 															Valid method names: 'reinit'
@@ -86,13 +87,14 @@
 		 * @type		Object
 		 * @memberOf	SortableTable
 		 * @since		1.0
-		 * @updated		1.0.2
+		 * @updated		1.0.3
 		 */
 		var default_options = {
 			image_base : null,						// Location of directory where images are located. Required. Default null.
 			theme : 'default',						// The theme directory where images are stored. Optiona. Default 'default'.
 			allow_col_resize : false,				// Flag indicating whether to allow columns to resize when adding the sort direction indicator. Optional. Default false.
-			rows_to_anchor : null					// Can be a selector string, set of elements, function, or jQuery object (see http://api.jquery.com/not/ for valid options). Optional. Default null.
+			rows_to_anchor : null,					// Can be a selector string, set of elements, function, or jQuery object (see http://api.jquery.com/not/ for valid options). Optional. Default null.
+			default_sort_order : 'ASC'				// The starting sort order when the user clicks on a header cell. Optional. Default 'ASC'.
 		};
 		
 		/**
@@ -165,6 +167,17 @@
 		 */
 		var sort_type = null;
 		
+		/**
+		 * A set of valid sort directions.
+		 *
+		 * @access		public
+		 * @type		array
+		 * @memberOf	SortableTable
+		 * @since		1.0.3
+		 * @default		new Array('ASC', 'DESC')
+		 */
+		var valid_sort_directions = new Array('ASC', 'DESC');
+		
 		//--------------------------------------------------------------------------
 		//
 		//  Methods
@@ -182,13 +195,18 @@
 		 * @access		public
 		 * @memberOf	SortableTable
 		 * @since		1.0
-		 * @updated		1.0.2
+		 * @updated		1.0.3
 		 * @throws		SortableTable exception
 		 */
 		this.initSortableTable = function() {
 			// First check for required options.
 			if (options.image_base == null) {
 				throw 'SortableTable widget: no image base specified.';
+				return;
+			}
+			
+			if ($.inArray(options.default_sort_order, valid_sort_directions) == -1) {
+				throw 'SortableTable widget: invalid default_sort_order option specified.';
 				return;
 			}
 			
@@ -257,7 +275,7 @@
 			sortable_table.data('sortable-table-options', options);
 			
 			// Add the event handler(s).
-			sortable_table.on('click', 'tr th', this.sortTableByColumn);
+			sortable_table.on('click.sortableTable', 'tr th', this.sortTableByColumn);
 		}
 		
 		/**
@@ -266,11 +284,11 @@
 		 *
 		 * @access		public
 		 * @memberOf	SortableTable
-		 * @since		1.0.2
+		 * @since		1.0.3
 		 */
 		this.destroy = function() {
 			// Remove the event handler(s).
-			sortable_table.off('click');
+			sortable_table.off('click.sortableTable');
 			
 			// Remove the options
 			sortable_table.removeData('sortable-table-options');
@@ -292,30 +310,44 @@
 		 * @access		public
 		 * @memberOf	SortableTable
 		 * @since		1.0
-		 * @updated		1.0.2
+		 * @updated		1.0.3
 		 *
-		 * @param		event					Event		jQuery 'click' event triggered when the user clicks on a table header cell
+		 * @param		event					Event		jQuery 'click.sortableTable' event triggered when the user clicks on a table header cell
 		 */
 		this.sortTableByColumn = function(event) {
 			if (event.type == 'click') {
 				var clicked_table_header = $(this);
-				var cur_sort_dir = clicked_table_header.attr('data-sort-direction');
+				var cur_sort_direction = clicked_table_header.attr('data-sort-direction');
 				var cur_sort_type = clicked_table_header.attr('data-sort-type');
-				
-				var sort_direction = (cur_sort_dir != null ? cur_sort_dir : 'DESC');
 				sortable_table.col_index_clicked = clicked_table_header.index();
 				sortable_table.sort_type = (cur_sort_type != null ? cur_sort_type : null);
 				
 				// Clear the sort direction of any other columns
 				clicked_table_header.siblings().removeAttr('data-sort-direction');
 				clicked_table_header.siblings().find('img').css({backgroundImage:''});
-				// Set the new sort direction for the current column
-				if (sort_direction == 'ASC') {
-					clicked_table_header.attr('data-sort-direction', 'DESC').find('img').css({backgroundImage:'url("'+options.image_base+'/'+options.theme+'/arrow-down.png")'});
+				
+				// Determine the new sort direction for the current column, including the new background image...
+				var new_sort_direction = options.default_sort_order;
+				var new_background_image_url = '';
+				if (cur_sort_direction != null) {
+					if (cur_sort_direction == 'ASC') {
+						new_sort_direction = 'DESC';
+					}
+					else if (cur_sort_direction == 'DESC') {
+						new_sort_direction = 'ASC';
+					}
+				}
+				if (new_sort_direction == 'DESC') {
+					new_background_image_url = 'url("'+options.image_base+'/'+options.theme+'/arrow-down.png")';
 				}
 				else {
-					clicked_table_header.attr('data-sort-direction', 'ASC').find('img').css({backgroundImage:'url("'+options.image_base+'/'+options.theme+'/arrow-up.png")'});
+					new_background_image_url = 'url("'+options.image_base+'/'+options.theme+'/arrow-up.png")';
 				}
+				// ...and set them.
+				clicked_table_header
+					.attr('data-sort-direction', new_sort_direction)
+					.find('img')
+					.css({backgroundImage:new_background_image_url});
 				
 				// Now actually sort each level's data (ALWAYS in ascending order here) based on the column clicked...
 				var l1_rows = sortable_table.find('tr[data-level=1]');
@@ -344,8 +376,8 @@
 				// ...OK, by now the data in each row has been sorted based on the column clicked, so
 				// now we have to actually move each row in the table to where it belongs so the
 				// user sees the table sorted.
-				if (sort_direction == 'DESC') {
-					// Show in descending order (add each set of level rows in backwards order)
+				if (new_sort_direction == 'ASC') {
+					// Show in ascending order (add each set of level rows in backwards order)
 					if (level_1_rows_to_sort.length > 0) {
 						for (var i = level_1_rows_to_sort.length-1; i >= 0; i--) {
 							var level_1_row = level_1_rows_to_sort[i];
@@ -368,7 +400,7 @@
 					}
 				}
 				else {
-					// Show in ascending order (add each set of level rows in regular order)
+					// Show in descending order (add each set of level rows in regular order)
 					if (level_1_rows_to_sort.length > 0) {
 						$.each(level_1_rows_to_sort, function(row_index, l1_row) {
 							var level_1_row = $(l1_row);
@@ -397,7 +429,10 @@
 		 * Determines what to return for the sort value based on which header
 		 * cell was clicked, how many cells are in the current row, and the
 		 * type of sort expected. If no sort type is expected, it does the
-		 * best it can with each row's cell text. 
+		 * best it can with each row's cell text.
+		 *
+		 * If the current row of the sort is missing a column due to merged cells
+		 * (using colspan), it attempts to sort using previous cells' sort values.
 		 *
 		 * @access		public
 		 * @memberOf	SortableTable
